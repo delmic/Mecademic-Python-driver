@@ -61,6 +61,7 @@ class RobotFeedback:
         a = re.search(r'(\d+)\.(\d+)\.(\d+)', firmware_version)
         self.version = a.group(0)
         self.version_regex = [int(a.group(1)), int(a.group(2)), int(a.group(3))]
+        self.received_data = {} # Contains the most recent received data from the robot with the error code as keys
 
     def connect(self):
         """Connects Mecademic Robot object communication to the physical Mecademic Robot.
@@ -88,6 +89,7 @@ class RobotFeedback:
                     self.get_data()
                 elif(self.version_regex[0] > 7): #RobotStatus and GripperStatus are sent on 10001 upon connecting from 8.x firmware
                     msg = self.socket.recv(256).decode('ascii') #read message from robot
+                    self.received_data = self._convert_response(msg)  # Convert the response message to a dict
                     self._get_robot_status(msg)
                     self._get_gripper_status(msg)
                 return True
@@ -122,6 +124,7 @@ class RobotFeedback:
         self.socket.settimeout(delay)                   #set read timeout to desired delay
         try:
             raw_msg = self.socket.recv(256).decode('ascii')         #read message from robot
+            self.received_data = self._convert_response(raw_msg)  # Convert the response message to a dict
             raw_response = raw_msg.split('\x00')                    # Split the data at \x00 to manage fragmented data
             raw_response[0] = self.last_msg_chunk + raw_response[0] # Merge the first data with last fragment from previous data stream
             self.last_msg_chunk = raw_response[-1]
@@ -149,11 +152,13 @@ class RobotFeedback:
             Message received from the Robot.
 
         """
-        code = None
         code = self._get_response_code('RobotStatus')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.robot_status = self._decode_msg(response, resp_code)
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.robot_status = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
 
     def _get_gripper_status(self, response):
         """Gets the values of GripperStatus bits from the message sent by
@@ -166,11 +171,13 @@ class RobotFeedback:
             Message received from the robot.
 
         """
-        code = None
         code = self._get_response_code('GripperStatus')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.gripper_status = self._decode_msg(response,resp_code)
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.gripper_status = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
 
     def _get_joints(self, response):
         """Gets the joint values of the variables from the message sent by the Robot.
@@ -182,11 +189,14 @@ class RobotFeedback:
             Message received from the Robot.
 
         """
-        code = None
         code = self._get_response_code('JointsPose')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.joints = self._decode_msg(response, resp_code)
+
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.joints = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
 
     def _get_cartesian(self, response):
         """Gets the cartesian values of the variables from the message sent by the Robot.
@@ -198,11 +208,14 @@ class RobotFeedback:
             Message received from the Robot.
 
         """
-        code = None
         code = self._get_response_code('CartesianPose')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.cartesian = self._decode_msg(response,resp_code)
+
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.cartesian = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
 
     def _get_joints_vel(self, response):
         """Gets the velocity values of the Joints from the message sent by the Robot.
@@ -214,11 +227,14 @@ class RobotFeedback:
             Message received from the Robot.
 
         """
-        code = None
         code = self._get_response_code('JointsVel')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.joints_vel = self._decode_msg(response,resp_code)
+
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.joints_vel = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
 
     def _get_torque_ratio(self, response):
         """Gets the torque ratio values of the Joints from the message sent by the Robot.
@@ -230,11 +246,14 @@ class RobotFeedback:
             Message received from the Robot.
 
         """
-        code = None
         code = self._get_response_code('TorqueRatio')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.torque = self._decode_msg(response,resp_code)
+
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.torque = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
     
     def _get_accelerometer(self,response):
         """Gets the accelerometers values from the message sent by the Robot.
@@ -246,11 +265,14 @@ class RobotFeedback:
             Message received from the Robot.
 
         """
-        code = None
         code = self._get_response_code('AccelerometerData')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.accelerometer = self._decode_msg(response,resp_code)
+
+        try:
+            for code_number in code:
+                # Don't include the brackets when looking up the code number
+                self.accelerometer = self.received_data[code_number[1:-1]]
+        except KeyError:
+            pass  # Don't raise an error for compatibility with previous implementations.
 
     def _get_response_code(self, param):
         """Retreives the response code for the parameters being streamed on port 100001.
@@ -296,30 +318,31 @@ class RobotFeedback:
         else:
             return ['Invalid']
 
-    def _decode_msg(self, response, resp_code):
-        """
-
-        Parameters
-        ----------
-        response : string
-            Message received from the Robot.
-        resp_code : string
-            Message to decode
-
-        Returns
-        --------
-        params : tuplt of float
-            Message decoded.
+    def _convert_response(self, msg):
 
         """
-        response = response.replace(resp_code+'[','').replace(']','')
-        params = ()
-        if response != '':
-            param_str = response.split(',')
-            if len(param_str) == 6:
-                params = tuple((float(x) for x in param_str))
-            elif len(param_str) == 7:
-                params = tuple((float(x) for x in param_str[1:]))   # remove timestamp
+        Method to convert and order the response message received from the robot. It uses regex to find valid
+        response code/messages which are converted and returned into an ordered dict.
+
+        :param msg (str): Entire message received from the robot (with or without the \x00 null character)
+        :return (dict): Contains the response code as keys and the corresponding decoded message as a value.
+        """
+        # Find the individual responses with a valid format and convert those into a list
+        msg_parts = re.findall("\[....\]\[.+?\]", msg)
+
+        response_dict = {}
+        # Put each individual response message/code in a dictonary
+        for individual_response in msg_parts:
+            response_code = individual_response[1:5]
+            response_msg = individual_response[7:-1].split(',')  # Convert the response message to a list
+
+            if len(response_msg) == 6:
+                response_content = tuple((float(x) for x in response_msg))
+            elif len(response_msg) == 7:
+                response_content = tuple((float(x) for x in response_msg[1:]))   # Remove the timestamp
             else:
-                params =()
-        return params
+                response_content = ()  # If the length of the message is different set the content of to empty
+
+            response_dict.update({response_code: response_content})
+
+        return response_dict
