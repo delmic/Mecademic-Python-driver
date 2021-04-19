@@ -312,6 +312,14 @@ class RobotController:
         elif(response_key == 2029 or response_key == 2007 or response_key == 2079): #if expected packet is from GetConf (2029), GetStatusRobot (2007) or GetStatusGripper (2079), rest of packet is data
             code_list_int = tuple((int(x) for x in code_list))          #convert status data into integers
             return code_list_int
+        elif response_key in ["1011", "1001", "1002", "1003", "1007", "1016", "1017", "1018"]:
+            # The robot is an error state try to recover from this by reactivating/starting the robot.
+            time.sleep(0.5)  # Allow robot to properly process the error state to not introduce a new error.
+            self.ResetError()
+            self.DeactivateRobot()
+            self.ActivateRobot()
+            self.home()
+            return str("Received: '%s', reactivated robot and tried to recover from this error" % code)
         else:
             return code                                      #nothing to decrypt or decryption not specified
 
